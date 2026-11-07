@@ -1,13 +1,15 @@
 // Loads dist/ as an unpacked extension in a fresh Chromium profile and checks, against a running backend:
 //  - install opens the first-run form (horizon + record kinds only); Skip gives a working panel
 //  - the /analyse request carries the install UUID as X-Install-Id and nothing else about the user
+//  - the content script detects purchases on saved pages (served at their real URLs via request
+//    interception, no network), checkout pages light the badge, and the panel analyses the detected request
 //  - cards appear one at a time and the spinner goes away
 //  - the Settings link reopens the form
 //  - an unreachable server shows an error instead of spinning forever
 //   npm run build && npm run e2e            (backend on http://localhost:8000)
 //   SERVER_URL=https://... npm run e2e
 import { createRequire } from "node:module";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -17,6 +19,12 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const dist = resolve(import.meta.dirname, "../dist");
 const server = process.env.SERVER_URL ?? "http://localhost:8000";
 const shots = process.env.SHOTS_DIR;
+const pagesDir = resolve(import.meta.dirname, "../../fixtures/pages");
+const PAGES = {
+  product: ["amazon-product", "https://www.amazon.co.uk/SodaStream-Terra-Sparkling-Water-Maker/dp/B09ABC1234"],
+  checkout: ["checkout", "https://www.fernline.co.uk/checkout/review"],
+  article: ["no-purchase-article", "https://www.themoneycolumn.co.uk/2026/10/are-subscriptions-worth-it"],
+};
 
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "sp-e2e-")), {
   headless: true,
@@ -24,6 +32,10 @@ const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "s
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
   viewport: { width: 400, height: 900 },
 });
+// Serve the saved pages at their real URLs.
+for (const [file, url] of Object.values(PAGES)) {
+  await ctx.route(url, (route) => route.fulfill({ contentType: "text/html", body: readFileSync(`${pagesDir}/${file}.html`, "utf8") }));
+}
 let failed = false;
 const check = (ok, msg) => { console.log(`${ok ? "PASS" : "FAIL"} ${msg}`); if (!ok) failed = true; };
 
@@ -53,9 +65,37 @@ try {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   check(UUID_RE.test(stored.install_id ?? ""), `install UUID generated (${stored.install_id})`);
 
-  const open = async (url) => {
+  // Visit a saved page; return its tab id once the content script has reported.
+  const visit = async (key) => {
+    const tab = await ctx.newPage();
+    await tab.goto(PAGES[key][1]);
+    let tabId;
+    for (const t = Date.now(); Date.now() - t < 10000 && tabId === undefined; await new Promise((r) => setTimeout(r, 100))) {
+      // The extension has no "tabs" permission, so find the tab by its stored detection, not tabs.query({url}).
+      tabId = await sw.evaluate(async (url) => {
+        const all = await chrome.storage.session.get(null);
+        const hit = Object.entries(all).find(([k, v]) => k.startsWith("detection:") && v.url === url);
+        return hit ? Number(hit[0].split(":")[1]) : undefined;
+      }, PAGES[key][1]);
+    }
+    if (tabId === undefined) throw new Error(`no detection reported for ${key}`);
+    const badge = await sw.evaluate((tabId) => chrome.action.getBadgeText({ tabId }), tabId);
+    const detection = await sw.evaluate((k) => chrome.storage.session.get(k).then((r) => r[k].detection), `detection:${tabId}`);
+    return { tab, tabId, badge, detection };
+  };
+
+  const product = await visit("product");
+  check(product.detection.status === "purchase" && product.detection.detector === "amazon" && product.badge === "",
+    `Amazon product page detected by the ${product.detection.detector} adapter, no badge`);
+  const checkout = await visit("checkout");
+  check(checkout.detection.checkout === true && checkout.badge === "£", `checkout page lights the badge ("${checkout.badge}")`);
+  const article = await visit("article");
+  check(article.detection.status === "none" && article.badge === "", "article page: no purchase, no badge");
+
+  // The side panel page, pinned to a tab (in real use it follows the active tab).
+  const open = async (url, tabId = product.tabId) => {
     const page = await ctx.newPage();
-    await page.goto(`chrome-extension://${id}/sidepanel.html`);
+    await page.goto(`chrome-extension://${id}/sidepanel.html?tabId=${tabId}`);
     await page.evaluate((u) => chrome.storage.local.set({ smallprint_server_url: u }), url);
     await page.reload();
     return page;
@@ -103,6 +143,9 @@ try {
     check(Object.keys(body).sort().join() === "item,links,page_text_snippets,price_drift,purchase_type_signals" &&
       !/install_id|postcode|horizon|recordKinds|political_donations/.test(JSON.stringify(body)),
       `body is page data only (keys: ${Object.keys(body).join(", ")})`);
+    check(body.item.id === "B09ABC1234" && body.item.name.startsWith("SodaStream Terra"), `body carries the detected item (${body.item.name})`);
+    // The saved Amazon page greets "Sweta" and shows her postcode in the header; none of it may leave.
+    check(!/Sweta|EH1/.test(JSON.stringify(body)), "no personal details from the page in the body");
   }
 
   // Settings link reopens the form, prefilled; saving 24 months returns to the cards.
@@ -114,6 +157,15 @@ try {
   await page.locator(".card__title").first().waitFor();
   const horizon = await page.evaluate(() => chrome.storage.local.get("smallprint_settings").then((r) => r.smallprint_settings.horizon));
   check(horizon === 24, "changed horizon saved to chrome.storage.local");
+
+  // A page with no purchase: the panel says so and offers the demo.
+  const none = await open(server, article.tabId);
+  await none.getByTestId("no-purchase").waitFor({ timeout: 10000 });
+  check((await none.getByTestId("progress").count()) === 0, "no-purchase page: 'No purchase detected', no spinner");
+  if (shots) await none.screenshot({ path: join(shots, "no-purchase.png") });
+  await none.getByText("Try the demo purchase").click();
+  await none.locator(".card__title").first().waitFor({ timeout: 10000 });
+  check(true, "demo button runs the canned request");
 
   // Unreachable server
   const bad = await open("http://127.0.0.1:9");

@@ -10,7 +10,8 @@ import { LockInCard } from "~panel/components/LockInCard";
 import { SmallPrintCard } from "~panel/components/SmallPrintCard";
 import { CompanyCard } from "~panel/components/CompanyCard";
 import { FirstRunForm } from "~panel/components/FirstRunForm";
-import { CANNED_REQUEST, DEFAULT_SERVER_URL, TIMEOUTS } from "../config";
+import { CANNED_REQUEST, DEFAULT_SERVER_URL, TIMEOUTS, type AnalyseBody } from "../config";
+import { useActiveDetection } from "./activeDetection";
 import { streamAnalyse } from "../sse";
 import { getInstallId } from "../install";
 import { completeSetup, isSetupDone, loadSettings, onSettingsChanged } from "../settings";
@@ -62,6 +63,15 @@ export function App() {
   const [status, setStatus] = useState<Status>("streaming");
   const [error, setError] = useState<string | null>(null);
   const run = useRef<AbortController | null>(null);
+  const [demo, setDemo] = useState(false);
+  const active = useActiveDetection();
+
+  // What to analyse: the active tab's detected purchase, or the canned request in demo mode.
+  const request: AnalyseBody | null = demo
+    ? CANNED_REQUEST
+    : active?.detection.status === "purchase" ? active.detection.request : null;
+  const requestKey = request ? JSON.stringify(request) : null;
+  const noPurchasePage = !demo && active !== undefined && request === null;
 
   useEffect(() => {
     loadSettings().then(setSettings).catch(() => {});
@@ -78,12 +88,25 @@ export function App() {
     };
   }, []);
 
-  // Analyse once setup is done and the server URL is known (and again if the URL changes).
+  // Analyse once setup is done, the server URL is known and there's something to analyse;
+  // again whenever the page's purchase or the URL changes.
   useEffect(() => {
-    if (serverUrl && setupDone) analyse(serverUrl);
-  }, [serverUrl, setupDone]);
+    if (serverUrl && setupDone && request) analyse(serverUrl, request);
+    else if (!request) {
+      run.current?.abort();
+      run.current = null;
+      setCards([]);
+      setError(null);
+      setStatus("done");
+    }
+  }, [serverUrl, setupDone, requestKey]);
 
-  async function analyse(url: string) {
+  // Switching to another tab leaves demo mode.
+  useEffect(() => setDemo(false), [active?.url]);
+
+  const rerun = () => serverUrl && request && analyse(serverUrl, request);
+
+  async function analyse(url: string, body: AnalyseBody) {
     run.current?.abort();
     const controller = new AbortController();
     run.current = controller;
@@ -92,7 +115,7 @@ export function App() {
     setStatus("streaming");
     try {
       const installId = await getInstallId();
-      for await (const card of streamAnalyse(url, CANNED_REQUEST, { ...TIMEOUTS, installId, signal: controller.signal })) {
+      for await (const card of streamAnalyse(url, body, { ...TIMEOUTS, installId, signal: controller.signal })) {
         if (controller.signal.aborted) return;
         // Replace a card if the server ever resends it, otherwise append in arrival order.
         setCards((prev) => [...prev.filter((c) => c.card !== card.card), card]);
@@ -114,7 +137,7 @@ export function App() {
     const next = input.value.trim() || DEFAULT_SERVER_URL;
     saveServerUrl(next);
     setShowSettings(false);
-    if (next === serverUrl) analyse(next);
+    if (next === serverUrl) rerun();
     else setServerUrl(next);
   }
 
@@ -147,7 +170,7 @@ export function App() {
 
   const noPurchase = cards.find((c) => c.card === "item")?.state === "n_a";
   const visible = noPurchase ? cards.filter((c) => c.card === "item") : cards;
-  const purchaseTypes = CANNED_REQUEST.purchase_type_signals ?? [];
+  const purchaseTypes = request?.purchase_type_signals ?? [];
 
   return (
     <div class="panel">
@@ -156,7 +179,7 @@ export function App() {
         <div class="sp-actions">
           <button class="btn btn--ghost" onClick={() => setEditingSettings(true)}>Settings</button>
           <button class="btn btn--ghost" onClick={() => setShowSettings((v) => !v)} aria-expanded={showSettings}>Server</button>
-          <button class="btn btn--primary" onClick={() => serverUrl && analyse(serverUrl)} disabled={status === "streaming" || !serverUrl}>
+          <button class="btn btn--primary" onClick={rerun} disabled={status === "streaming" || !serverUrl || !request}>
             Re-run
           </button>
         </div>
@@ -173,7 +196,7 @@ export function App() {
       {status === "error" && (
         <div class="error-banner sp-error" role="alert">
           <span>{error}</span>
-          <button class="btn btn--ghost" onClick={() => serverUrl && analyse(serverUrl)}>Retry</button>
+          <button class="btn btn--ghost" onClick={rerun}>Retry</button>
         </div>
       )}
 
@@ -192,8 +215,17 @@ export function App() {
         </div>
       )}
 
-      {status === "done" && cards.length === 0 && <p class="empty-state">No results came back for this page.</p>}
-      <p class="sp-footnote">Demo: analysing a canned request ({CANNED_REQUEST.item.name ?? CANNED_REQUEST.item.url}).</p>
+      {noPurchasePage && (
+        <div class="cards" data-testid="no-purchase">
+          <ItemCard item={{}} state="n_a" purchaseTypes={[]} />
+          <p class="sp-footnote">
+            <button class="btn btn--ghost" onClick={() => setDemo(true)}>Try the demo purchase</button>
+          </p>
+        </div>
+      )}
+      {active === undefined && !demo && <div class="loading">Looking at this page…</div>}
+      {request && status === "done" && cards.length === 0 && <p class="empty-state">No results came back for this page.</p>}
+      {demo && <p class="sp-footnote">Demo: analysing a canned request ({CANNED_REQUEST.item.name ?? CANNED_REQUEST.item.url}).</p>}
     </div>
   );
 }
