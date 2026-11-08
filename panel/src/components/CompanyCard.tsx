@@ -28,7 +28,12 @@ export const KIND_LABELS: Record<string, string> = {
   lgbtq_rights: "LGBTQ+ rights",
   abortion_rights: "Abortion rights",
   climate: "Climate targets",
+  news: "In the news",
 };
+
+/** Shown under every news record: the words are the outlet's, not ours. */
+export const NEWS_DISCLAIMER =
+  "Quoted from the article. This is what the outlet reported, not SmallPrint's opinion, and SmallPrint has not checked the claims.";
 
 /** Settings IDs that differ from the record kind they mean. */
 const SETTING_TO_KIND: Record<string, string> = {
@@ -57,6 +62,7 @@ function Record({ r, flagged }: { r: CompanyRecord; flagged: boolean }) {
       <span class="record-kind">{KIND_LABELS[r.kind] ?? r.kind.replace(/_/g, " ")}</span>
       <span class="record-date">{formatDate(r.date)}</span>
       <p class="record-summary">{r.summary}</p>
+      {r.kind === "news" && <p class="muted record-disclaimer" data-testid="news-disclaimer">{NEWS_DISCLAIMER}</p>}
       {r.source_url ? (
         <a href={r.source_url} class="source-link" target="_blank" rel="noopener noreferrer">Source ↗</a>
       ) : (

@@ -16,6 +16,7 @@ const RECORD_KIND_OPTIONS = [
   { id: "modern_slavery", label: "Modern slavery statements" },
   { id: "asa_ruling", label: "ASA advertising rulings" },
   { id: "climate", label: "Climate targets" },
+  { id: "news", label: "In the news (BBC, Reuters, Guardian and others)" },
 ];
 
 export function FirstRunForm({ onComplete, initial = DEFAULT_SETTINGS, title = "Set up Small Print" }: Props) {

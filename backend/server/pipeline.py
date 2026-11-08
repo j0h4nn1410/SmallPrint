@@ -49,6 +49,11 @@ def refill_enabled() -> bool:
     """Refill cost (S8) is gated: off unless SMALLPRINT_REFILL=1, set only if the H10 gate passes."""
     return os.environ.get("SMALLPRINT_REFILL", "").strip().lower() in ("1", "true", "on", "yes")
 
+
+def deep_search_enabled() -> bool:
+    """Company deep search (ADR 0003): on unless SMALLPRINT_DEEP_SEARCH is 0/false/off/no."""
+    return os.environ.get("SMALLPRINT_DEEP_SEARCH", "").strip().lower() not in ("0", "false", "off", "no")
+
 Card = tuple[str, str, object]  # (card, state, payload)
 
 TERMS_CARDS = ("cost", "lock_in", "small_print")
@@ -238,15 +243,47 @@ def get_company_lookup():
     return company_lookup
 
 
-async def company_source(request: AnalyseRequest) -> list[Card]:
+def get_news_lookup():
+    """Return the fetch_news callable. Tests monkeypatch this to inject a stub."""
+    from smallprint.news import fetch_news
+    return fetch_news
+
+
+async def _news_records(result: dict, install_id: str | None, client: AsyncOpenAI | None,
+                        tracker: SpendTracker | None, search: TavilySearch | None) -> list[dict]:
+    """News records (ADR 0004) for an identified company, or [] when off, unconfigured or failing."""
+    from smallprint.news import NEWS_TIMEOUT_S, news_enabled
+    # Only once we know who the company is: news about an unresolved brand name could be
+    # about a different company with the same name.
+    if not (client and search and news_enabled() and (result.get("ch_number") or result.get("parent"))):
+        return []
+    try:
+        return await asyncio.wait_for(
+            get_news_lookup()(result.get("brand") or "", result.get("parent"), client=client,
+                              api_key=search.api_key, install_id=install_id, tracker=tracker),
+            NEWS_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        log.warning("news lookup timed out for brand=%s", result.get("brand"))
+    except Exception:
+        log.exception("news lookup failed for brand=%s", result.get("brand"))
+    return []
+
+
+async def company_source(request: AnalyseRequest, install_id: str | None = None,
+                         client: AsyncOpenAI | None = None, tracker: SpendTracker | None = None,
+                         search: TavilySearch | None = None) -> list[Card]:
     brand = request.item.brand or request.item.name or ""
     domain = request.item.url or ""
     try:
         result = await asyncio.wait_for(
-            get_company_lookup()(brand, domain, manufacturer=request.item.manufacturer), COMPANY_TIMEOUT_S)
+            get_company_lookup()(brand, domain, manufacturer=request.item.manufacturer,
+                                 deep_search=deep_search_enabled()), COMPANY_TIMEOUT_S)
     except asyncio.TimeoutError:
         log.warning("company lookup timed out after %ss for brand=%s", COMPANY_TIMEOUT_S, brand)
         return [("company", "not_found", {**EMPTY_PAYLOAD["company"], "brand": brand})]
+    news = await _news_records(result, install_id, client, tracker, search)
+    if news:
+        result = {**result, "records": [*(result.get("records") or []), *news]}
     # "found" when we know who's behind it, even if no UK records could be joined: a
     # Companies House match, a known parent, or a record matched on the exact brand or
     # parent name (the ethics datasets carry no CH number, ADR 0002).
@@ -270,7 +307,7 @@ async def stream_real(request: AnalyseRequest, install_id: str, client: AsyncOpe
     sources: list[tuple[tuple[str, ...], Callable[[], Awaitable[list[Card]]]]] = [
         (("item", "price_drift"), lambda: page_source(request)),
         (TERMS_CARDS, lambda: terms_source(request, install_id, client, tracker, search, cache)),
-        (("company",), lambda: company_source(request)),
+        (("company",), lambda: company_source(request, install_id, client, tracker, search)),
     ]
 
     async def run(cards: tuple[str, ...], fn: Callable[[], Awaitable[list[Card]]]) -> list[Card]:

@@ -118,7 +118,8 @@ def test_default_record_kinds_match_data_kinds() -> None:
     kinds = re.findall(r'"([^"]+)"', m.group(1))
 
     db_kinds = {"donation", "gender_pay_gap", "modern_slavery", "lgbtq_rights", "abortion_rights", "climate"}
-    live_kinds = {"asa_ruling"}
+    from smallprint.news import KIND as NEWS_KIND  # live: news.py via pipeline (ADR 0004)
+    live_kinds = {"asa_ruling", NEWS_KIND}
     allowed = db_kinds | live_kinds
     unknown = set(kinds) - allowed
     assert not unknown, (

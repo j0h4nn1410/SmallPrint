@@ -41,6 +41,22 @@ Records are joined on CH number only (strict).  No name-based join because
 a name that looks the same can belong to a different company.
 
 No verdict words: summaries come verbatim from the records index.
+
+Deep search (``deep_search=True``; the pipeline turns it on, ADR 0003).  Off, the
+lookup behaves exactly as described above.  On, three gaps are closed:
+  * A brand that *is* the company (Microsoft, no parent on Wikidata) is kept as its
+    own owner instead of being dropped, when its Wikidata item is a legal entity
+    (it has an LEI or an official name).  It is shown under its official name.
+  * When the owner is known but has no UK number, the UK company named after it
+    is looked for: its exact name plus a UK legal form, optionally with "UK"
+    ("Microsoft" → "MICROSOFT LIMITED", "Apple" → "APPLE (UK) LIMITED"), at
+    Companies House and then among the records index's CH-keyed companies.  Exactly
+    one company must fit, or nothing is used.  Only names are compared: the
+    subsidiary graph is still never walked ("PepsiCo UK Pension Plan Trustee
+    Limited" has extra words, so it never fits).
+  * The name-keyed records (ADR 0002) also match the owner's official name, and its
+    name without the legal form ("Microsoft Corporation" ↔ "MICROSOFT CORP"); ASA
+    rulings are fetched for a known owner even without a UK number.
 """
 from __future__ import annotations
 
@@ -49,6 +65,7 @@ import logging
 import os
 import re
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -77,6 +94,15 @@ _LEI_RE = re.compile(r"^[A-Z0-9]{18}\d{2}$")
 _LEGAL_FORMS = {"limited", "plc", "inc", "llc", "llp", "lp", "corporation", "corp", "company", "co",
                 "gmbh", "ag", "sa", "sas", "bv", "nv", "spa", "srl", "ab", "as", "oy", "kk", "pty"}
 
+# Deep search: the UK company named after an owner ends in a UK legal form, and may
+# carry a UK qualifier before it ("Apple (UK) Limited").
+_UK_LEGAL_ENDINGS = ("limited", "plc", "llp", "public limited company")
+_UK_QUALIFIERS = ("united kingdom", "great britain", "u k", "uk", "gb")
+DEEP_SEARCH_BUDGET_S = 5.0
+# Deep search may make one more Wikidata call (the page's-own-site candidates).
+DEEP_WIKIDATA_EXTRA_S = 2.0
+_MIN_CORE_LEN = 3
+
 
 def legal_name_key(name: str | None) -> str:
     """A company's legal name for exact comparison: case, punctuation, "&"/"and" and
@@ -97,6 +123,32 @@ def _owner_key(name: str | None) -> str:
     while words and words[-1] in _LEGAL_FORMS:
         words.pop()
     return " ".join(words)
+
+
+def _owner_cores(names) -> tuple[str, ...]:
+    """Distinct owner keys of ``names``, long enough to be meaningful."""
+    return tuple(dict.fromkeys(k for k in (_owner_key(n) for n in names if n) if len(k) >= _MIN_CORE_LEN))
+
+
+def _uk_company_fits(name: str | None, cores: tuple[str, ...]) -> bool:
+    """A UK company named exactly after one of the owner ``cores`` (deep search).
+
+    "MICROSOFT LIMITED" and "Apple (UK) Limited" fit "microsoft" and "apple";
+    "Microsoft Research Limited", "PepsiCo UK Pension Plan Trustee Limited" and
+    "Microsoft Corporation" (no UK legal form) do not.
+    """
+    key = legal_name_key(name)
+    if not key or not cores or not any(key == e or key.endswith(" " + e) for e in _UK_LEGAL_ENDINGS):
+        return False
+    words = key.split()
+    while words and (words[-1] in _LEGAL_FORMS or words[-1] == "public"):
+        words.pop()
+    core = " ".join(words)
+    for q in _UK_QUALIFIERS:
+        if core.endswith(" " + q):
+            core = core[: -len(q) - 1]
+            break
+    return core in cores
 
 
 def _made_by(manufacturer: str, company_label: str | None) -> bool:
@@ -207,6 +259,29 @@ def _parent_ids(entity: dict) -> list[str]:
     return []
 
 
+def _official_names(entity: dict) -> list[str]:
+    """English official names (P1448), e.g. "Microsoft Corporation"."""
+    names = []
+    for v in _claim_values(entity, "P1448"):
+        if isinstance(v, dict) and v.get("text") and (v.get("language") or "en").startswith("en"):
+            names.append(v["text"].strip())
+    return names
+
+
+def _is_legal_entity(entity: dict) -> bool:
+    """The item is a company itself, not a product or brand: it has an LEI, or an official
+    name ending in a legal form ("Microsoft Corporation"; not "iOS")."""
+    if _lei(entity):
+        return True
+    return any((legal_name_key(n).split() or [""])[-1] in _LEGAL_FORMS for n in _official_names(entity))
+
+
+def _company_names(entity: dict | None) -> tuple[str, ...]:
+    if not entity:
+        return ()
+    return tuple(dict.fromkeys(n for n in (_entity_label(entity), *_official_names(entity)) if n))
+
+
 def _lei(entity: dict) -> str | None:
     for v in _claim_values(entity, "P1278"):
         if isinstance(v, str) and _LEI_RE.match(v.strip().upper()):
@@ -272,6 +347,23 @@ async def _pick_by_manufacturer(http: httpx.AsyncClient, candidates: dict[str, d
     return fits[0] if len(fits) == 1 else None
 
 
+@dataclass(frozen=True)
+class _WikidataMatch:
+    parent: str | None = None
+    ch: str | None = None
+    via: str | None = None
+    lei: str | None = None
+    # Label and official names of the company that would be displayed (the parent,
+    # or the brand's own item when it has none).  Empty when nothing matched.
+    company_names: tuple[str, ...] = ()
+    # The brand's own item when it is a company with no parent and no UK number
+    # (Microsoft): its official name, else its label.  Only deep search uses it.
+    self_owner: str | None = None
+
+
+_NO_MATCH = _WikidataMatch()
+
+
 async def _wikidata_lookup(
     http: httpx.AsyncClient, brand: str, domain: str, manufacturer: str = "",
 ) -> tuple[str | None, str | None, str | None, str | None]:
@@ -280,6 +372,21 @@ async def _wikidata_lookup(
     ``parent_name`` can come back without a CH number: the owner is still worth
     showing.  Any network or parsing failure counts as "not found" so the later
     steps still run.
+    """
+    m = await _wikidata_resolve(http, brand, domain, manufacturer)
+    if m.ch is None and m.parent is None:
+        return None, None, None, None
+    return m.parent, m.ch, m.via, m.lei
+
+
+async def _wikidata_resolve(
+    http: httpx.AsyncClient, brand: str, domain: str, manufacturer: str = "", deep: bool = False,
+) -> _WikidataMatch:
+    """The Wikidata step in full: what ``_wikidata_lookup`` returns plus what deep search needs.
+
+    ``deep``: when no exact-name item can be picked, an item named after the brand
+    plus more words ("Apple Inc.", "Sky Group") is taken only if its official website
+    is the page's own site and it is the only such item.
     """
     try:
         resp = await http.get(
@@ -292,31 +399,48 @@ async def _wikidata_lookup(
         )
         resp.raise_for_status()
         wanted = brand.casefold()
-        ids, label_ids = [], set()
+        ids, label_ids, near_ids = [], set(), []
+        brand_key = _owner_key(brand)
         for hit in resp.json().get("search") or []:
             text = ((hit.get("match") or {}).get("text") or hit.get("label") or "")
             if text.strip().casefold() == wanted and hit.get("id"):
                 ids.append(hit["id"])
                 if (hit.get("label") or "").strip().casefold() == wanted:
                     label_ids.add(hit["id"])
-        if not ids:
-            return None, None, None, None
+            elif deep and hit.get("id") and brand_key and (hit.get("match") or {}).get("type", "label") == "label":
+                k = _owner_key(hit.get("label") or text)
+                if k == brand_key or k.startswith(brand_key + " "):
+                    near_ids.append(hit["id"])
+        if not ids and not near_ids:
+            return _NO_MATCH
 
-        entities = await _wd_entities(http, ids)
+        entities = await _wd_entities(http, ids) if ids else {}
         # The brand's own name beats a nickname: try label matches first, then everything.
         by_label = {q: e for q, e in entities.items() if q in label_ids}
         qid = _pick_candidate(by_label, domain) if by_label else None
         if qid is None:
             qid = _pick_candidate(entities, domain)
         via = "Wikidata"
-        if qid is None and manufacturer:
+        if qid is None and manufacturer and entities:
             # Several items share the name (Dove soap, Dove chocolate): the page's manufacturer decides.
             qid = (await _pick_by_manufacturer(http, by_label, manufacturer) if by_label else None) \
                 or await _pick_by_manufacturer(http, entities, manufacturer)
             if qid:
                 via = "Wikidata, told apart by the page's manufacturer"
+        if qid is None and deep and domain and near_ids:
+            # Deep search: the company whose official website is this very page's site.
+            # Products and services share the company's site (iPhone, Apple TV), so only a
+            # legal entity whose site is this host, or a parent of it (store.google.com →
+            # google.com), counts.  Never the other way round (music.apple.com).
+            near = await _wd_entities(http, near_ids[:50])
+            on_site = [q for q, e in _substantial(near).items()
+                       if _is_legal_entity(e) and any(domain == h or domain.endswith("." + h) for h in _site_hosts(e))]
+            if len(on_site) == 1:
+                qid = on_site[0]
+                entities = {**entities, **near}
+                via = "Wikidata, from the page's own website"
         if qid is None:
-            return None, None, None, None
+            return _NO_MATCH
 
         entity = entities[qid]
         own_ch = _normalise_ch_number(next(iter(_claim_values(entity, "P2622")), None))
@@ -354,13 +478,20 @@ async def _wikidata_lookup(
             frontier = nxt
 
         if ch is None and parent_name is None:
-            return None, None, None, None
+            # No parent and no UK number.  The brand's own item may still be the company
+            # behind it (Microsoft): deep search keeps it as its own owner.
+            if _is_legal_entity(entity):
+                own = (_official_names(entity) or [_entity_label(entity)])[0]
+                if own:
+                    return _WikidataMatch(via=via, lei=_lei(entity), company_names=_company_names(entity), self_owner=own)
+            return _NO_MATCH
         # The LEI of the company we will display: the parent shown, or the brand's own
         # company when it has no parent.  Never another ancestor's.
-        return parent_name, ch, via, _lei(parent_entity if parent_entity else entity)
+        shown = parent_entity if parent_entity else entity
+        return _WikidataMatch(parent=parent_name, ch=ch, via=via, lei=_lei(shown), company_names=_company_names(shown))
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         log.debug("wikidata lookup failed for brand=%s", brand)
-        return None, None, None, None
+        return _NO_MATCH
 
 
 # ---------------------------------------------------------------------------
@@ -441,20 +572,7 @@ async def _ch_lookup(http: httpx.AsyncClient, brand: str, api_key: str) -> tuple
     """Exact name match against Companies House search. Returns (name, ch_number) or (None, None)."""
     if not api_key:
         return None, None
-    try:
-        resp = await http.get(
-            f"{CH_API}/search/companies",
-            params={"q": brand, "items_per_page": 5},
-            auth=(api_key, ""),
-            timeout=TIMEOUT_S,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except (httpx.HTTPError, ValueError):
-        log.debug("companies house search failed for %s", brand)
-        return None, None
-
-    for item in (data.get("items") or []):
+    for item in await _ch_search(http, brand, api_key, 5):
         title = (item.get("title") or "").strip()
         number = (item.get("company_number") or "").strip()
         if legal_name_key(title) == legal_name_key(brand) and number:
@@ -462,11 +580,90 @@ async def _ch_lookup(http: httpx.AsyncClient, brand: str, api_key: str) -> tuple
     return None, None
 
 
+async def _ch_search(http: httpx.AsyncClient, query: str, api_key: str, size: int) -> list[dict]:
+    """Companies House company search results, or [] on any failure."""
+    try:
+        resp = await http.get(
+            f"{CH_API}/search/companies",
+            params={"q": query, "items_per_page": size},
+            auth=(api_key, ""),
+            timeout=TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        return resp.json().get("items") or []
+    except (httpx.HTTPError, ValueError, AttributeError):
+        log.debug("companies house search failed for %s", query)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Deep search: the UK company named after a known owner
+# ---------------------------------------------------------------------------
+
+def _like_prefix(word: str) -> str:
+    return word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def _index_uk_companies(db_path: Path, cores: tuple[str, ...]) -> dict[str, str]:
+    """{CH number: name} of CH-keyed companies in the records index named after ``cores``."""
+    if not cores or not db_path.exists():
+        return {}
+    found: dict[str, str] = {}
+    try:
+        con = sqlite3.connect(db_path)
+        try:
+            for first in dict.fromkeys(c.split()[0] for c in cores):
+                for ch, name in con.execute(
+                    "SELECT DISTINCT ch_number, company_name FROM records "
+                    "WHERE ch_number IS NOT NULL AND company_name LIKE ? ESCAPE '\\'",
+                    (_like_prefix(first),),
+                ):
+                    if _uk_company_fits(name, cores):
+                        found.setdefault(ch, name)
+        finally:
+            con.close()
+    except sqlite3.Error:
+        log.exception("records index search failed for %s", cores)
+        return {}
+    return found
+
+
+async def _deep_uk_company(
+    http: httpx.AsyncClient, owner_names: tuple[str, ...], db_path: Path, api_key: str,
+) -> tuple[str, str, str] | None:
+    """(legal name, CH number, where found) of the one UK company named after the owner, or None.
+
+    Companies House first (when a key is set), then the records index.  More than one
+    fitting company in a source means it's ambiguous there: nothing is taken from it.
+    """
+    cores = _owner_cores(owner_names)
+    if not cores:
+        return None
+    if api_key:
+        hits: dict[str, str] = {}
+        for core in cores[:2]:
+            for item in await _ch_search(http, core, api_key, 20):
+                title = (item.get("title") or "").strip()
+                number = _normalise_ch_number(item.get("company_number"))
+                if number and item.get("company_status", "active") != "dissolved" and _uk_company_fits(title, cores):
+                    hits.setdefault(number, title)
+        if len(hits) == 1:
+            (number, title), = hits.items()
+            return title, number, "Companies House"
+    indexed = _index_uk_companies(db_path, cores)
+    if len(indexed) == 1:
+        (number, name), = indexed.items()
+        return name, number, "records index"
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Records index
 # ---------------------------------------------------------------------------
 
-def _load_records(ch_number: str | None, db_path: Path, names: tuple[str, ...] = ()) -> list[dict]:
+def _load_records(
+    ch_number: str | None, db_path: Path, names: tuple[str, ...] = (), owner_names: tuple[str, ...] = (),
+) -> list[dict]:
     """Return records for this company, newest first. [] if DB absent.
 
     Two join paths (ADR 0001, extended by ADR 0002):
@@ -480,6 +677,10 @@ def _load_records(ch_number: str | None, db_path: Path, names: tuple[str, ...] =
     ``names`` are the company's resolved brand and parent. No fuzzy or partial
     matching: a looked-alike name can be a different legal entity.
     ``ch_number`` is None when no UK company was found: only the name join runs then.
+
+    ``owner_names`` (deep search only) are names of the resolved owner; name-keyed rows
+    also match them with the legal form ignored ("MICROSOFT CORP" for "Microsoft
+    Corporation").  Every other word still has to match.
     """
     if not db_path.exists():
         log.warning("records DB not found at %s", db_path)
@@ -499,6 +700,16 @@ def _load_records(ch_number: str | None, db_path: Path, names: tuple[str, ...] =
                 "WHERE ch_number IS NULL AND company_name = ? COLLATE NOCASE",
                 (name,),
             ).fetchall()
+        cores = _owner_cores(owner_names)
+        for first in dict.fromkeys(c.split()[0] for c in cores):
+            rows += [
+                r[:4] for r in con.execute(
+                    "SELECT kind, summary, date, source_url, company_name FROM records "
+                    "WHERE ch_number IS NULL AND company_name LIKE ? ESCAPE '\\'",
+                    (_like_prefix(first),),
+                ).fetchall()
+                if _owner_key(r[4]) in cores
+            ]
         con.close()
     except sqlite3.Error:
         log.exception("records query failed for ch_number=%s", ch_number)
@@ -541,11 +752,13 @@ async def company_lookup(
     db_path: Path | None = None,
     ch_api_key: str | None = None,
     manufacturer: str | None = None,
+    deep_search: bool = False,
 ) -> dict:
     """Brand → parent → CH number.  Returns the company dict for the response schema.
 
     Injectable ``http``, ``db_path`` and ``ch_api_key`` for testing.
     Production callers pass nothing; defaults come from env / filesystem.
+    ``deep_search`` adds the steps in the module docstring; off, nothing changes.
     """
     brand = clean_brand(brand)
     manufacturer = tidy_manufacturer(manufacturer)
@@ -566,10 +779,21 @@ async def company_lookup(
     try:
         # --- Step 1: Wikidata ---
         try:
-            parent, ch, via, parent_lei = await asyncio.wait_for(_wikidata_lookup(http, brand, domain, manufacturer), WIKIDATA_BUDGET_S)
+            wd = await asyncio.wait_for(
+                _wikidata_resolve(http, brand, domain, manufacturer, deep=deep_search),
+                WIKIDATA_BUDGET_S + (DEEP_WIKIDATA_EXTRA_S if deep_search else 0.0))
         except asyncio.TimeoutError:
             log.debug("wikidata lookup timed out for brand=%s", brand)
+            wd = _NO_MATCH
+        if wd.ch or wd.parent:
+            parent, ch, via, parent_lei = wd.parent, wd.ch, wd.via, wd.lei
+        elif deep_search and wd.self_owner:
+            # Deep search: the brand is the company itself (Microsoft → Microsoft Corporation).
+            parent, ch, via, parent_lei = wd.self_owner, None, wd.via, wd.lei
+        else:
             parent, ch, via, parent_lei = None, None, None, None
+        # The owner's own names, for deep search: only when Wikidata settled who it is.
+        owner_names = (wd.company_names + ((parent,) if parent else ())) if deep_search and (parent or ch) else ()
 
         # --- Step 2: GLEIF: the displayed company's own LEI record ---
         if not ch and parent_lei:
@@ -611,11 +835,29 @@ async def company_lookup(
                 parent = parent or ch_name
                 ch = ch_num
 
-        db_records = _load_records(ch, db_path, names=(brand, parent or ""))
+        # --- Step 4 (deep search): the UK company named after the owner ---
+        if deep_search and not ch and wd.company_names and owner_names:
+            try:
+                deep = await asyncio.wait_for(
+                    _deep_uk_company(http, owner_names, db_path, ch_api_key), DEEP_SEARCH_BUDGET_S)
+            except asyncio.TimeoutError:
+                log.debug("deep search timed out for brand=%s", brand)
+                deep = None
+            if deep:
+                uk_name, ch, source = deep
+                found = f"deep search: UK company named after it ({source}): {uk_name}"
+                via = f"{via}; {found}" if via else found
 
-        if ch:
+        db_records = _load_records(
+            ch, db_path, names=(brand, parent or "", *owner_names), owner_names=owner_names)
+
+        if ch or (deep_search and parent):
             from smallprint.asa import fetch_asa_rulings
             asa_records = await fetch_asa_rulings(brand, parent=parent, http=http)
+        else:
+            asa_records = []
+
+        if ch:
             return {
                 "brand": brand,
                 "parent": parent,
@@ -630,7 +872,8 @@ async def company_lookup(
         # UK Companies House entry (e.g. PepsiCo, L'Oréal). ADR 0002.
         if parent:
             # The owner is known even though no UK company number is: say so.
-            return {"brand": brand, "parent": parent, "ch_number": None, "match_via": via, "records": db_records}
+            return {"brand": brand, "parent": parent, "ch_number": None, "match_via": via,
+                    "records": db_records + asa_records}
         if db_records:
             return {
                 "brand": brand,
