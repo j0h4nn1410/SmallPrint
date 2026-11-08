@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Small Print — HackTheBurgh 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css" />
+<style>
+/* ═══════════════════════ BRAND TOKENS ═══════════════════════ */
+:root {
+  --d:  #283d3b;
+  --t:  #197278;
+  --bl: #edddd4;
+  --r:  #c44536;
+  --br: #772e25;
+  --pa: #d9c9c0;
+  --m:  ui-monospace, Menlo, Consolas, monospace;
+  --f:  -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+}
+
+/* ═══════════════════════ REVEAL BASE ═══════════════════════ */
+.reveal-viewport { background: var(--pa); }
+.reveal .slides  { text-align: left; }
+.reveal .slides section {
+  box-sizing: border-box; padding: 0;
+  font-family: var(--f); font-size: 14px;
+}
+.reveal h1,.reveal h2,.reveal h3 {
+  font-family: var(--f); text-transform: none;
+  letter-spacing: -.01em; margin: 0;
+}
+.reveal p,.reveal li { margin: 0; }
+.reveal .progress { color: var(--r); }
+.reveal .controls { color: var(--t); }
+
+/* ═══════════════════════ LOGO ═══════════════════════ */
+.logo { font-weight: 900; font-size: 15px; letter-spacing: .04em; color: var(--bl); font-family: var(--f); }
+.logo b { color: var(--r); }
+
+/* ═══════════════════════ TOPBAR ═══════════════════════ */
+.tb { display: flex; justify-content: space-between; align-items: center; padding: 15px 28px 11px; }
+.tb-sub { font-size: 11px; opacity: .55; color: var(--bl); }
+
+/* ═══════════════════════ HEADINGS ═══════════════════════ */
+.lbl {
+  display: block; font-size: 10px; text-transform: uppercase;
+  letter-spacing: .12em; font-weight: 800; margin-bottom: 3px;
+}
+.lbl-d  { color: rgba(237,221,212,.45); }
+.lbl-br { color: var(--br); }
+.lbl-t  { color: var(--t); }
+.hdg { font-size: 24px; font-weight: 800; line-height: 1.15; margin-bottom: 14px; }
+.hdg em { font-style: normal; color: var(--r); }
+.hdg-bl { color: var(--bl); }
+.hdg-dp { color: var(--d); }
+
+/* ═══════════════════════ BODY / GRIDS ═══════════════════════ */
+.bw { padding: 0 28px 22px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ═══════════════════════ DARK CARD ═══════════════════════ */
+.dk {
+  background: rgba(237,221,212,.07);
+  border: 1.5px solid rgba(237,221,212,.16);
+  border-radius: 11px; padding: 12px 14px;
+  color: var(--bl); font-size: 13px;
+}
+.dk strong { color: #fff; }
+.dk-t { border-left: 3px solid var(--t); background: rgba(25,114,120,.12); }
+.dk-r { border-left: 3px solid var(--r); }
+
+/* ═══════════════════════ RECEIPT ═══════════════════════ */
+.rc {
+  background: #fff; padding: 12px 14px; margin-bottom: 16px;
+  border-radius: 4px; position: relative; color: var(--d);
+}
+.rc::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 6px;
+  background: radial-gradient(circle at 6px 0, #fff 5px, transparent 5.5px) repeat-x;
+  background-size: 12px 6px;
+}
+.rh {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 800; color: var(--br); margin-bottom: 8px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.rh em { font-style: normal; letter-spacing: .02em; text-transform: none; color: var(--t); }
+.rl {
+  display: flex; justify-content: space-between;
+  font-size: 12.5px; padding: 3.5px 0; font-family: var(--m);
+}
+.dash { border-top: 1.5px dashed rgba(40,61,59,.28); margin: 6px 0; }
+.rt   { font-weight: 800; font-size: 14px; }
+.rl-r { color: var(--r); }
+
+/* ═══════════════════════ ACCORDION ═══════════════════════ */
+.acc { background: #fff; border-radius: 10px; overflow: hidden; color: var(--d); }
+.ai {
+  padding: 9px 13px; border-top: 1px solid rgba(40,61,59,.08);
+  font-size: 12.5px; display: flex; justify-content: space-between; align-items: center;
+}
+.ai:first-child { border-top: none; }
+.ai b { font-weight: 800; }
+.ai .cv { opacity: .4; margin-left: 6px; font-size: 10px; }
+.ai.op { background: rgba(25,114,120,.08); }
+.qq {
+  padding: 0 13px 9px; background: rgba(25,114,120,.08);
+  font-size: 11.5px; line-height: 1.5; font-style: italic;
+  color: rgba(40,61,59,.7);
+}
+.qq a { font-style: normal; font-weight: 800; color: var(--t); text-decoration: none; }
+
+/* ═══════════════════════ CHAIN ═══════════════════════ */
+.chain { background: #fff; border-radius: 10px; padding: 14px 16px; color: var(--d); }
+.nd {
+  border: 2px solid var(--d); border-radius: 8px;
+  padding: 6px 12px; font-size: 13px; font-weight: 800; display: inline-block;
+}
+.nd small { display: block; font-weight: 500; font-size: 10.5px; opacity: .6; }
+.nd.par { background: var(--d); color: var(--bl); }
+.lnk { width: 2px; height: 13px; background: var(--d); margin-left: 19px; }
+.via { font-size: 10px; color: var(--t); font-weight: 700; margin: -11px 0 0 28px; height: 11px; }
+.recs { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rb {
+  border-radius: 8px; padding: 7px 9px;
+  font-size: 12px; font-weight: 700;
+  background: rgba(196,69,54,.1); border-left: 3px solid var(--r); color: var(--d);
+}
+.rb small { display: block; font-weight: 500; font-size: 10px; opacity: .65; }
+.rb.n { background: rgba(40,61,59,.06); border-left-color: rgba(40,61,59,.22); }
+.rb.asa { background: rgba(25,114,120,.1); border-left-color: var(--t); }
+
+/* ═══════════════════════ TILES ═══════════════════════ */
+.tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.tile {
+  background: rgba(237,221,212,.07); border: 1.5px solid rgba(237,221,212,.16);
+  border-radius: 10px; padding: 9px 10px;
+  font-size: 12px; font-weight: 700; color: var(--bl); position: relative;
+}
+.tile small { display: block; font-weight: 500; font-size: 10.5px; opacity: .6; margin-top: 1px; }
+.tile.on { border-color: var(--t); background: rgba(25,114,120,.18); }
+.tile.on::after {
+  content: "✓"; position: absolute; top: 8px; right: 9px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--t); color: #fff; font-size: 9px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+}
+.tile.cut { opacity: .3; }
+
+/* ═══════════════════════ HERO BAR ═══════════════════════ */
+.hero { background: var(--t); color: #fff; padding: 13px 20px; }
+.hero .nm { font-size: 11.5px; font-weight: 700; display: block; margin-bottom: 9px; opacity: .95; }
+.hrow { display: flex; gap: 12px; align-items: center; }
+.stats4 { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stt { background: rgba(255,255,255,.14); border-radius: 9px; padding: 7px 9px; }
+.stt b { display: block; font-size: 15px; line-height: 1.1; color: #fff; }
+.stt small { font-size: 10px; opacity: .85; display: block; margin-top: 1px; }
+.stt.w { background: var(--bl); }
+.stt.w,.stt.w b { color: var(--d); }
+.stt.r b { color: #ffc2b4; }
+.ring {
+  width: 70px; height: 70px; border-radius: 50%;
+  background: conic-gradient(rgba(255,255,255,.85) 0 73%, rgba(255,255,255,.18) 73% 100%);
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.ri {
+  width: 50px; height: 50px; border-radius: 50%; background: var(--t);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px; line-height: 1; color: #fff;
+}
+.ri small { font-size: 8.5px; opacity: .85; margin-top: 2px; }
+
+/* ═══════════════════════ LIGHT HEADER ═══════════════════════ */
+.lh {
+  background: var(--d); color: var(--bl); padding: 14px 22px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.lh small { font-size: 11px; opacity: .6; color: var(--bl); }
+
+/* ═══════════════════════ STEPS ═══════════════════════ */
+.steps { list-style: none; padding: 0; margin: 0; }
+.steps li {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 7px 0; font-size: 12.5px; color: var(--bl);
+  border-bottom: 1px solid rgba(237,221,212,.1);
+}
+.steps li:last-child { border-bottom: none; }
+.sn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--t); color: #fff;
+  font-size: 10px; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+}
+
+/* ═══════════════════════ ARCH BOX ═══════════════════════ */
+.arch {
+  font-family: var(--m); font-size: 11px;
+  color: rgba(237,221,212,.5); line-height: 1.95;
+  background: rgba(0,0,0,.2); border-radius: 10px; padding: 14px 16px;
+}
+.arch .a1 { color: var(--bl); font-weight: 700; }
+.arch .a2 { color: #f2b8a6; font-weight: 600; }
+.arch .a3 { color: rgba(100,210,210,.85); }
+
+/* ═══════════════════════ BIG STAT ═══════════════════════ */
+.bnum { display: block; font-size: 38px; font-weight: 900; color: var(--r); line-height: 1; }
+.blbl { font-size: 11px; opacity: .55; color: var(--bl); display: block; margin-top: 3px; }
+
+/* ═══════════════════════ CHIPS ═══════════════════════ */
+.chip {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px; letter-spacing: .03em;
+}
+.chip-r { background: var(--r); color: #fff; }
+.chip-t { background: var(--t); color: #fff; }
+.chip-d { background: var(--d); color: var(--bl); }
+
+/* ═══════════════════════ INLINE CODE ═══════════════════════ */
+.ic {
+  font-family: var(--m); font-size: 11px;
+  background: rgba(255,255,255,.1); padding: 1px 5px; border-radius: 3px;
+}
+
+/* ═══════════════════════ NOTE CARD ═══════════════════════ */
+.note { background: #fff; border-radius: 10px; padding: 12px 14px; color: var(--d); font-size: 13px; }
+.note-lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .1em;
+  font-weight: 800; color: var(--br); margin-bottom: 7px; display: block;
+}
+
+/* ═══════════════════════ SETUP TILES ═══════════════════════ */
+.stile {
+  background: rgba(237,221,212,.06); border: 1.5px solid rgba(237,221,212,.14);
+  border-radius: 10px; padding: 10px 11px;
+  font-size: 12px; font-weight: 700; color: var(--bl); position: relative;
+}
+.stile small { display: block; font-weight: 400; font-size: 10.5px; opacity: .55; margin-top: 2px; }
+.stile.on { border-color: var(--t); background: rgba(25,114,120,.18); }
+.stile.on::after {
+  content: "✓"; position: absolute; top: 8px; right: 9px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--t); color: #fff; font-size: 9px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+}
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ══════════════════════════════════════════════════
+  01  TITLE
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 28px 44px;text-align:center">
+  <div style="margin-bottom:18px">
+    <span class="chip chip-r">HackTheBurgh 2026</span>
+  </div>
+  <h1 style="font-size:80px;font-weight:900;color:var(--bl);letter-spacing:-.03em;line-height:1;font-family:var(--f)">
+    SMALL<b style="color:var(--r)">/</b>PRINT
+  </h1>
+  <p style="font-size:20px;color:rgba(237,221,212,.75);margin-top:12px;font-weight:400;font-family:var(--f)">
+    The price is only the <em style="font-style:normal;color:var(--r)">first</em> number.
+  </p>
+  <p style="font-size:13px;color:rgba(237,221,212,.4);margin-top:5px;font-family:var(--f)">
+    Lifetime cost · lock-in terms · who owns the brand — quoted from the source.
+  </p>
+  <div style="display:flex;justify-content:center;gap:60px;margin-top:52px">
+    <div style="text-align:center"><span class="bnum">3</span><span class="blbl">questions answered</span></div>
+    <div style="text-align:center"><span class="bnum">0</span><span class="blbl">verdicts — evidence only</span></div>
+    <div style="text-align:center"><span class="bnum">40</span><span class="blbl">URLs tested, 0 wrong matches</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  02  PROBLEM
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">The problem</span></div>
+<div class="bw">
+  <span class="lbl lbl-d">The problem</span>
+  <h2 class="hdg hdg-bl">You're buying more than the headline price</h2>
+  <div class="g3">
+    <div class="dk dk-r fragment">
+      <span class="chip chip-r" style="margin-bottom:9px">Hidden cost</span>
+      <p style="font-size:13px;line-height:1.55;margin-top:4px">
+        That £89.99 SodaStream needs <strong>£14.99 cylinders — SodaStream only.</strong>
+        Twelve-month total: £269. The page shows only £89.99.
+      </p>
+    </div>
+    <div class="dk dk-r fragment">
+      <span class="chip chip-r" style="margin-bottom:9px">Lock-in</span>
+      <p style="font-size:13px;line-height:1.55;margin-top:4px">
+        A "free trial" becomes a <strong>full-price auto-renewing subscription.</strong>
+        Notice periods, minimum terms and cancel flows are buried in T&amp;Cs.
+      </p>
+    </div>
+    <div class="dk dk-r fragment">
+      <span class="chip chip-r" style="margin-bottom:9px">Who's behind it?</span>
+      <p style="font-size:13px;line-height:1.55;margin-top:4px">
+        That independent-looking brand is owned by a <strong>parent company</strong> with a dated public
+        record of regulator decisions, pay gaps and political donations.
+      </p>
+    </div>
+  </div>
+  <p class="fragment" style="font-size:12px;margin-top:16px;opacity:.45;color:var(--bl)">
+    Shoppers on a tight budget have no easy way to surface any of this before they click Buy.
+  </p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  03  THREE QUESTIONS
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">What it does</span></div>
+<div class="bw">
+  <span class="lbl lbl-d">What it does</span>
+  <h2 class="hdg hdg-bl">Three questions, answered on any page</h2>
+  <div style="display:flex;flex-direction:column;gap:9px">
+    <div class="dk dk-t fragment">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-size:28px;font-weight:900;color:var(--t);line-height:1;flex:none">1</span>
+        <div>
+          <p style="font-weight:800;color:#fff;font-size:13.5px;margin-bottom:3px">What will this <em style="font-style:normal;color:var(--r)">actually</em> cost me over time?</p>
+          <p style="font-size:12px;opacity:.65;line-height:1.5">Purchase + running costs + step-changes, proprietary refills, exit fees — over 12 or 24 months. Usage slider adjusts locally, no round trip.</p>
+        </div>
+      </div>
+    </div>
+    <div class="dk fragment" style="border-left:3px solid #9ec6c8;background:rgba(158,198,200,.1)">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-size:28px;font-weight:900;color:#9ec6c8;line-height:1;flex:none">2</span>
+        <div>
+          <p style="font-weight:800;color:#fff;font-size:13.5px;margin-bottom:3px">What am I locking myself into?</p>
+          <p style="font-size:12px;opacity:.65;line-height:1.5">Minimum term, auto-renewal, notice period, how to cancel, proprietary refills — with a verbatim quote from the T&amp;Cs for every row shown.</p>
+        </div>
+      </div>
+    </div>
+    <div class="dk fragment" style="border-left:3px solid #c9a98f;background:rgba(201,169,143,.1)">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-size:28px;font-weight:900;color:#c9a98f;line-height:1;flex:none">3</span>
+        <div>
+          <p style="font-weight:800;color:#fff;font-size:13.5px;margin-bottom:3px">Who am I giving my money to?</p>
+          <p style="font-size:12px;opacity:.65;line-height:1.5">Brand → parent company via Wikidata · GLEIF · Companies House, then dated public records: ASA rulings, gender pay gap, modern slavery, donations. Sourced. No verdict.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  04  HOW IT WORKS
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">Architecture</span></div>
+<div class="bw">
+  <span class="lbl lbl-d">How it works</span>
+  <h2 class="hdg hdg-bl">Open any page → click the badge</h2>
+  <div class="g2" style="gap:18px">
+    <ol class="steps">
+      <li><span class="sn">1</span><span><strong>Detection</strong> — JSON-LD, Amazon adapter, wording detector, or LLM fallback reads the page already open — no bot detection</span></li>
+      <li><span class="sn">2</span><span><strong>T&amp;C fetch</strong> — backend follows page links, checks domain cache, common paths, then Tavily (company domain only)</span></li>
+      <li><span class="sn">3</span><span><strong>LLM extraction</strong> — Claude Haiku fills the schema; every field needs a verbatim quote or returns <span class="ic">null</span></span></li>
+      <li><span class="sn">4</span><span><strong>Company lookup</strong> — Wikidata SPARQL → GLEIF LEI → Companies House, joined on company number to load records from SQLite</span></li>
+      <li><span class="sn">5</span><span><strong>Cards stream in</strong> — SSE, card by card as each lookup resolves — no waiting for the slowest one</span></li>
+    </ol>
+    <div class="arch">
+      <span class="a1">[Chrome extension MV3]</span><br>
+      &nbsp;content script reads page<br>
+      &nbsp;↓ POST /analyse<br>
+      <br>
+      <span class="a2">[Railway / FastAPI]</span><br>
+      &nbsp;asyncio.gather<br>
+      &nbsp;&nbsp;<span class="a3">terms fetcher</span> httpx + LLM<br>
+      &nbsp;&nbsp;<span class="a3">company lookup</span> Wikidata/GLEIF/CH<br>
+      &nbsp;&nbsp;<span class="a3">refill research</span> Tavily<br>
+      &nbsp;&nbsp;<span class="a3">price drift</span> checkout monitor<br>
+      &nbsp;↓ SSE — card by card<br>
+      <br>
+      <span class="a1">[Side panel — Preact]</span><br>
+      &nbsp;renders each card as it arrives<br>
+      &nbsp;press-cached T&amp;Cs on second visit
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  05  SUBSCRIPTION DEMO — AUDIBLE (light panel)
+══════════════════════════════════════════════════ -->
+<section data-background-color="#edddd4">
+<div class="lh">
+  <span class="logo">SMALL<b>/</b>PRINT</span>
+  <small>Demo — audible.co.uk · subscription</small>
+</div>
+<!-- Hero bar -->
+<div class="hero">
+  <span class="nm">Audible Premium Plus · Subscription · £0.99 intro offer</span>
+  <div class="hrow">
+    <div class="ring"><div class="ri">73%<small>ongoing</small></div></div>
+    <div class="stats4">
+      <div class="stt w"><b>£66.90</b><small>12-month total</small></div>
+      <div class="stt"><b>68×</b><small>the intro price</small></div>
+      <div class="stt r"><b>auto-renews</b><small>after 3 months</small></div>
+      <div class="stt"><b>30 days</b><small>notice to cancel</small></div>
+    </div>
+  </div>
+  <div style="font-size:11px;opacity:.8;margin-top:8px">Switch to 24 months — total updates instantly, no round trip</div>
+</div>
+<!-- Body -->
+<div style="padding:16px 22px 20px;background:var(--bl)">
+  <div class="g2" style="gap:16px;align-items:start">
+    <!-- Receipt -->
+    <div>
+      <div class="rc">
+        <div class="rh">Receipt <em>12 months</em></div>
+        <div class="rl"><span>Intro offer × 3</span><span>£2.97</span></div>
+        <div class="rl"><span>Standard rate × 9</span><span>£53.91</span></div>
+        <div class="dash"></div>
+        <div class="rl rt"><span>12-month total</span><span>£56.88</span></div>
+        <div class="dash"></div>
+        <div class="rl rl-r"><span>+ Annual fee year 2</span><span>£71.88</span></div>
+      </div>
+      <p style="font-size:11px;color:var(--br);opacity:.8">Step-change sourced from audible.co.uk/whats-audible · verified quote</p>
+    </div>
+    <!-- Terms accordion -->
+    <div>
+      <p class="lbl lbl-br" style="margin-bottom:7px">Lock-in &amp; small print</p>
+      <div class="acc">
+        <div class="ai op"><span>Auto-renews</span><span><b style="color:var(--r)">Yes</b><span class="cv">▾</span></span></div>
+        <div class="qq">"Your membership will automatically renew at the end of the trial period at the standard membership price." <a href="#">audible.co.uk ↗</a></div>
+        <div class="ai op"><span>Notice to cancel</span><span><b>30 days</b><span class="cv">▾</span></span></div>
+        <div class="qq">"To avoid being charged, cancel at least 24 hours before the renewal date." <a href="#">audible.co.uk ↗</a></div>
+        <div class="ai"><span>How to cancel</span><span><b>Account settings</b><span class="cv">▸</span></span></div>
+        <div class="ai"><span>Min term</span><span style="opacity:.45">None<span class="cv">▸</span></span></div>
+      </div>
+      <p style="font-size:11px;opacity:.5;margin-top:8px;color:var(--d)">Rows it didn't find are not shown — never filled by voice</p>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  06  COMPANY CHAIN — VODAFONE (light panel)
+══════════════════════════════════════════════════ -->
+<section data-background-color="#edddd4">
+<div class="lh">
+  <span class="logo">SMALL<b>/</b>PRINT</span>
+  <small>Demo — vodafone.co.uk · company record</small>
+</div>
+<div style="padding:16px 22px 20px;background:var(--bl)">
+  <span class="lbl lbl-br" style="margin-bottom:4px">Who's behind it?</span>
+  <h2 class="hdg hdg-dp" style="font-size:21px;margin-bottom:14px">Brand to parent — with the public record</h2>
+  <div class="g2" style="gap:16px;align-items:start">
+    <!-- Chain -->
+    <div class="chain">
+      <div class="nd">Vodafone<small>brand on this page</small></div>
+      <div class="lnk"></div>
+      <div class="via">matched via Companies House number</div>
+      <div class="nd par">Vodafone Group Plc<small>Companies House 01833679</small></div>
+      <div class="recs">
+        <div class="rb">Pay gap report<small>GOV.UK · 2024</small></div>
+        <div class="rb">Slavery statement<small>GOV.UK · 2023</small></div>
+        <div class="rb asa">3 ASA rulings<small>ASA · 2021–2024</small></div>
+        <div class="rb n">No donations<small>Electoral Commission</small></div>
+      </div>
+      <p style="font-size:11px;margin-top:9px;opacity:.5;color:var(--d)">Wrong match: 0 on our 20-brand test list · "Wrong match?" re-runs the lookup</p>
+    </div>
+    <!-- Notes -->
+    <div style="display:flex;flex-direction:column;gap:11px">
+      <div class="note">
+        <span class="note-lbl">Sourced. Not scored.</span>
+        <p style="font-size:13px;color:var(--d);line-height:1.6">
+          Every record has a date, a source link, and the original text. No ethics score.
+          No "unethical" label. Regulator decisions preferred over press. <strong>The user decides what matters.</strong>
+        </p>
+      </div>
+      <div class="note">
+        <span class="note-lbl">Wrong match?</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <div style="background:var(--bl);border:1px solid rgba(40,61,59,.2);border-radius:6px;padding:5px 9px;font-size:12.5px;flex:1;color:var(--d);font-family:var(--m)">Vodafone / Vodafone Group Plc</div>
+          <div style="background:var(--t);color:#fff;border-radius:6px;padding:5px 11px;font-size:12.5px;font-weight:700">Correct</div>
+        </div>
+        <p style="font-size:11px;opacity:.5;margin-top:6px;color:var(--d)">Re-runs Wikidata + GLEIF + Companies House with the corrected name</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  07  EVIDENCE NOT VERDICTS
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">Core principle</span></div>
+<div class="bw">
+  <span class="lbl lbl-d">Core principle</span>
+  <h2 class="hdg hdg-bl">Evidence, <em>not</em> verdicts</h2>
+  <div class="g2" style="gap:18px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div class="dk dk-t fragment">
+        <p style="font-size:13px;line-height:1.55">Every claim has a <strong>verbatim quote</strong>, a <strong>source URL</strong>, and a <strong>date</strong>. The code re-fetches the source and checks the quote is in it.</p>
+      </div>
+      <div class="dk fragment">
+        <p style="font-size:13px;line-height:1.55">If the LLM can't find a verifiable quote in the source, the field returns <span class="ic">null</span> — not a guess. <strong>Quote or null.</strong> No invented values.</p>
+      </div>
+      <div class="dk fragment">
+        <p style="font-size:13px;line-height:1.55">Estimates are labelled: <strong>low / mid / high</strong> ranges with source URLs — never presented as exact. A missing returns policy IS a finding.</p>
+      </div>
+      <div class="dk fragment">
+        <p style="font-size:13px;line-height:1.55">No ethics scores. Regulator decisions preferred over press. <strong>The user decides what matters.</strong></p>
+      </div>
+    </div>
+    <div class="arch fragment">
+      <span class="a1">// Four honest card states</span><br>
+      <br>
+      <span class="a2">found</span>     — value + quote + link<br>
+      <span class="a2">estimated</span> — value + range + source<br>
+      <span class="a2">not_found</span> — said plainly<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(a missing policy<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;IS a finding)<br>
+      <span class="a2">n_a</span>       — doesn't apply<br>
+      <br>
+      <span class="a1">// Extraction rule</span><br>
+      "Any field without a<br>
+      verifiable quote from the<br>
+      provided source text<br>
+      returns null."<br>
+      <br>
+      <span class="a1">// Verification rule</span><br>
+      Code checks every quote<br>
+      appears in the source.<br>
+      Failed → not shown.
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  08  TECH STACK
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">Stack</span></div>
+<div class="bw">
+  <span class="lbl lbl-d">Stack</span>
+  <h2 class="hdg hdg-bl">Decisions and why</h2>
+  <div class="g2" style="gap:11px">
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div class="dk">
+        <p style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t);font-weight:800;margin-bottom:4px">Extension</p>
+        <p style="font-size:13px;color:#fff;font-weight:700">Chrome MV3 · TypeScript · Preact · <span class="ic">chrome.sidePanel</span></p>
+        <p style="font-size:11.5px;opacity:.58;margin-top:3px;line-height:1.5">Reads the page the user already has open — bypasses bot detection entirely</p>
+      </div>
+      <div class="dk">
+        <p style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t);font-weight:800;margin-bottom:4px">Backend</p>
+        <p style="font-size:13px;color:#fff;font-weight:700">FastAPI · Python · <span class="ic">asyncio.gather</span> · SSE</p>
+        <p style="font-size:11.5px;opacity:.58;margin-top:3px;line-height:1.5">Cards emitted as each lookup resolves — panel fills progressively, no waiting</p>
+      </div>
+      <div class="dk">
+        <p style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t);font-weight:800;margin-bottom:4px">Hosting</p>
+        <p style="font-size:13px;color:#fff;font-weight:700">Railway — always on, no cold start</p>
+        <p style="font-size:11.5px;opacity:.58;margin-top:3px;line-height:1.5">Skeleton endpoint served mock JSON in hour 1; everyone built in parallel from day one</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div class="dk">
+        <p style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t);font-weight:800;margin-bottom:4px">LLM</p>
+        <p style="font-size:13px;color:#fff;font-weight:700">Claude Haiku 4.5 · constrained JSON output</p>
+        <p style="font-size:11.5px;opacity:.58;margin-top:3px;line-height:1.5">~6 k token chunks · hard cap 8 k input · per-install daily spend limit</p>
+      </div>
+      <div class="dk">
+        <p style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t);font-weight:800;margin-bottom:4px">Search</p>
+        <p style="font-size:13px;color:#fff;font-weight:700">Tavily — structured results with source URLs</p>
+        <p style="font-size:11.5px;opacity:.58;margin-top:3px;line-height:1.5">Refill pricing + T&amp;C fallback, company domain only — no open-ended web search</p>
+      </div>
+      <div class="dk">
+        <p style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--t);font-weight:800;margin-bottom:4px">Public data</p>
+        <p style="font-size:13px;color:#fff;font-weight:700">Wikidata · GLEIF · Companies House · Electoral Commission · Gov.uk · ASA</p>
+        <p style="font-size:11.5px;opacity:.58;margin-top:3px;line-height:1.5">All free, joined on company number via SQLite — no data licence fees</p>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  09  WHAT SHIPPED
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">What shipped</span></div>
+<div class="bw">
+  <span class="lbl lbl-d">What shipped</span>
+  <h2 class="hdg hdg-bl">Built in one night</h2>
+  <div class="tiles">
+    <div class="tile on">Purchase detection<small>JSON-LD, Amazon adapter, wording detector, LLM</small></div>
+    <div class="tile on">Lifetime cost<small>horizon toggle recalculates locally</small></div>
+    <div class="tile on">Proprietary refills<small>Tavily search + LLM, source verified</small></div>
+    <div class="tile on">T&amp;C fetch &amp; extract<small>5-step fallback, quote-verified fields</small></div>
+    <div class="tile on">Terms accordion<small>lock-in + small print, expand for quote</small></div>
+    <div class="tile on">Price drift<small>first seen vs checkout, fees itemised</small></div>
+    <div class="tile on">Company chain<small>Wikidata → GLEIF → Companies House</small></div>
+    <div class="tile on">Public records<small>pay gap, modern slavery, ASA, donations</small></div>
+    <div class="tile on">"Wrong match?"<small>re-runs lookup with correction</small></div>
+    <div class="tile on">Product n/a<small>cost + lock-in don't apply to one-off products</small></div>
+    <div class="tile on">40-URL harness<small>products, subs, contracts, edge cases</small></div>
+    <div class="tile cut">Travel / finance<small>next iteration</small></div>
+  </div>
+  <p style="font-size:11px;opacity:.4;color:var(--bl);margin-top:12px">
+    81 extension tests · 44 panel tests · 0 wrong company matches on the 40-URL suite
+  </p>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════════
+  10  TRY IT
+══════════════════════════════════════════════════ -->
+<section data-background-color="#283d3b">
+<div class="tb"><span class="logo">SMALL<b>/</b>PRINT</span><span class="tb-sub">HackTheBurgh 2026</span></div>
+<div class="bw" style="text-align:center;padding-top:12px">
+  <span class="lbl lbl-d" style="display:block;text-align:center;margin-bottom:6px">Demo</span>
+  <h2 class="hdg hdg-bl" style="text-align:center;font-size:28px;margin-bottom:6px">Try it now</h2>
+  <p style="font-size:13px;opacity:.5;color:var(--bl);margin-bottom:28px">Open any page — the judge's choice.</p>
+
+  <div class="g3" style="max-width:860px;margin:0 auto 32px;text-align:left;gap:14px">
+    <div class="dk dk-t">
+      <p style="font-size:28px;font-weight:900;color:var(--t);line-height:1;margin-bottom:6px">1</p>
+      <p style="font-size:13px;line-height:1.55">Load extension unpacked from <span class="ic">/extension/dist</span></p>
+    </div>
+    <div class="dk" style="border-left:3px solid #9ec6c8;background:rgba(158,198,200,.1)">
+      <p style="font-size:28px;font-weight:900;color:#9ec6c8;line-height:1;margin-bottom:6px">2</p>
+      <p style="font-size:13px;line-height:1.55">Click <strong>Skip</strong> on the first-run form — working defaults, no setup needed</p>
+    </div>
+    <div class="dk dk-r">
+      <p style="font-size:28px;font-weight:900;color:var(--r);line-height:1;margin-bottom:6px">3</p>
+      <p style="font-size:13px;line-height:1.55">Go to any subscription or product page and click the badge</p>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:center;gap:52px;flex-wrap:wrap">
+    <div style="text-align:center"><span class="bnum">&lt;2s</span><span class="blbl">price-derived cards</span></div>
+    <div style="text-align:center"><span class="bnum">&lt;5s</span><span class="blbl">company + cached T&amp;Cs</span></div>
+    <div style="text-align:center"><span class="bnum">~20s</span><span class="blbl">new T&amp;C extraction streamed</span></div>
+  </div>
+
+  <p style="margin-top:28px;font-size:11.5px;opacity:.35;color:var(--bl)">
+    UK-first · Chrome only · No verdicts · Every claim has a source
+  </p>
+</div>
+</section>
+
+</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  transition: 'fade',
+  transitionSpeed: 'fast',
+  backgroundTransition: 'fade',
+  controls: true,
+  controlsTutorial: false,
+  progress: true,
+  center: true,
+  width: 1280,
+  height: 720,
+  margin: 0.04,
+  minScale: 0.1,
+  maxScale: 3.0,
+});
+</script>
+</body>
+</html>
